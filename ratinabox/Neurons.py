@@ -929,6 +929,10 @@ class PlaceCells(Neurons):
         """Returns the firing rate of the place cells.
         By default position is taken from the Agent and used to calculate firinf rates. This can also by passed directly (evaluate_at=None, pos=pass_array_of_positions) or ou can use all the positions in the environment (evaluate_at="all").
 
+        You can choose 'consistent' or 'inconsistent' for the position variable for each place cells.
+        When you choose 'inconsistent', for each cell the position is added a random value so that the latent is now different for each cell.
+        When you choose 'inconsistent' it is assumed that 'evaluate_at' is set to "agent".
+
         Returns:
             firingrates: an array of firing rates
         """
@@ -939,6 +943,12 @@ class PlaceCells(Neurons):
         else:
             pos = kwargs["pos"]
         pos = np.array(pos)
+        
+        bool_inconsistent = kwargs.get('use_inconsistent_place_cells', False)
+        if bool_inconsistent:
+            assert evaluate_at == "agent", "If you want to use inconsistent place cells you must set evaluate_at='agent'"
+            assert len(pos) == self.n, "If you want to use inconsistent place cells you must have the same number of positions as place cells"
+            pos += np.random.uniform(-0.5, 0.5, size=pos.shape)
 
         # place cell fr's depend only on how far the agent is from cell centres (and their widths)
         dist = (
@@ -946,6 +956,11 @@ class PlaceCells(Neurons):
                 self.place_cell_centres, pos, wall_geometry=self.wall_geometry
             )
         )  # distances to place cell centres
+
+        if bool_inconsistent:
+            assert dist.shape == (self.n, self.n)
+            dist = dist[np.diag_indices(self.n)] #only take the diagonal of the distance matrix
+
         widths = np.expand_dims(self.place_cell_widths, axis=-1)
 
         if self.description == "gaussian":
