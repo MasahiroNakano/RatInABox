@@ -83,7 +83,7 @@ class Agent:
         "save_history": True,  # whether to save position and velocity history as you go
     }
 
-    def __init__(self, Environment, params={}):
+    def __init__(self, Environment, params={}, **kwargs):
         """Initialise Agent, takes as input a parameter dictionary.
         Any values not provided by the params dictionary are taken from a default dictionary below.
 
@@ -106,7 +106,18 @@ class Agent:
 
         self.Environment.add_agent(agent=self) #will raise an warning(/error) if the agent name is not unique
 
+        # decide whether to use multiple trajectories
+        self.use_multi_traj = kwargs.get('use_multiple_trajectories', False)
+        assert type(self.use_multi_traj) == bool, "use_multiple_trajectories must be a boolean"
+        if self.use_multi_traj:
+            self.n_traj = kwargs.get('n_trajectories', 1)
+            assert type(self.n_traj) == int, "n_trajectories must be an integer"
+            assert self.n_traj > 0, "n_trajectories must be greater than 0"
 
+            self.traj_var = kwargs.get('trajectory_variance', 0.01)
+            assert type(self.traj_var) in [float, int], "trajectory_variance must be a float"
+            assert self.traj_var >= 0, "trajectory_variance must be greater than or equal to 0"
+        
         # initialise history dataframes
         self.history = {}
         self.history["t"] = []
@@ -115,6 +126,9 @@ class Agent:
         self.history["vel"] = []
         self.history["rot_vel"] = []
         self.history["head_direction"] = []
+
+        if self.use_multi_traj:
+            self.history["multiple_pos"] = []
 
         self._last_history_array_cache_time = None
         self._history_arrays = {} # this is used to cache the history data as an arrays for faster plotting/animating
@@ -139,6 +153,9 @@ class Agent:
         self.measured_rotational_velocity = 0
         self.prev_measured_velocity = self.measured_velocity.copy()
         self.head_direction = self.velocity / np.linalg.norm(self.velocity)
+        if self.use_multi_traj:
+            self.multiple_pos = np.tile(self.pos, (self.n_traj, 1))
+            # print(self.multiple_pos.shape)
 
         # warn if 1D and non-zero speed mean with solid boundary conditions
         if self.Environment.dimensionality == "1D" and self.Environment.boundary_conditions == "solid" and self.speed_mean != 0:
@@ -200,7 +217,7 @@ class Agent:
         self.prev_velocity = self.velocity.copy()
         self.prev_measured_velocity = self.measured_velocity.copy()
         forced_next_position = kwargs.get("forced_next_position", None) #if provided this will override the random motion model and the imported trajectory model
-
+        
         # Update the position according to the random motion model and drift velocity
         if self.use_imported_trajectory == False and forced_next_position is None:
             # Random update to the velocity (Ornstein-Uhlenbeck)
@@ -223,6 +240,9 @@ class Agent:
             # Calculate the velocity of the step that, after all that, was taken.
             self._measure_velocity_of_step_taken()
 
+            if self.use_multi_traj:
+                noise = np.random.randn(self.n_traj, 2) * self.traj_var
+                self.multiple_pos = self.pos + noise
        
     
         # Update position along the imported trajectory if one has been provided
@@ -517,7 +537,10 @@ class Agent:
         self.history["head_direction"].append(self.head_direction.tolist())
         if self.Environment.dimensionality == "2D":
             self.history["rot_vel"].append(self.measured_rotational_velocity)     
+        if self.use_multi_traj:
+            self.history["multiple_pos"].append(self.multiple_pos.tolist())
         return
+
 
     def initialise_position_and_velocity(self):
         """Resamples the position (self.pos) and velocity (self.velocity) of the Agent. Note this leaves self.prev_pos and self.measured_velocity etc. unchanged."""

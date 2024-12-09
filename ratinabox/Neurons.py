@@ -942,13 +942,16 @@ class PlaceCells(Neurons):
             pos = self.Agent.Environment.flattened_discrete_coords
         else:
             pos = kwargs["pos"]
+        if self.Agent.use_multi_traj:
+            pos = self.Agent.multiple_pos
         pos = np.array(pos)
+
         
-        bool_inconsistent = kwargs.get('use_inconsistent_place_cells', False)
-        if bool_inconsistent:
-            assert evaluate_at == "agent", "If you want to use inconsistent place cells you must set evaluate_at='agent'"
-            assert len(pos) == self.n, "If you want to use inconsistent place cells you must have the same number of positions as place cells"
-            pos += np.random.uniform(-0.5, 0.5, size=pos.shape)
+        # bool_inconsistent = kwargs.get('use_inconsistent_place_cells', False)
+        # if bool_inconsistent:
+        #     assert evaluate_at == "agent", "If you want to use inconsistent place cells you must set evaluate_at='agent'"
+        #     assert len(pos) == self.n, "If you want to use inconsistent place cells you must have the same number of positions as place cells"
+        #     pos += np.random.uniform(-0.5, 0.5, size=pos.shape)
 
         # place cell fr's depend only on how far the agent is from cell centres (and their widths)
         dist = (
@@ -957,9 +960,10 @@ class PlaceCells(Neurons):
             )
         )  # distances to place cell centres
 
-        if bool_inconsistent:
+        if self.Agent.use_multi_traj:
             assert dist.shape == (self.n, self.n)
             dist = dist[np.diag_indices(self.n)] #only take the diagonal of the distance matrix
+            dist = dist[:, None]
 
         widths = np.expand_dims(self.place_cell_widths, axis=-1)
 
